@@ -1,0 +1,25 @@
+function main(workbook: ExcelScript.Workbook) {
+    const sheet: ExcelScript.Worksheet = workbook.getWorksheet("Logs");
+
+    // Get the used range (may be undefined on a completely blank sheet)
+    const usedRange: ExcelScript.Range | undefined = sheet.getUsedRange(false);
+
+    let nextRow: number;
+
+    if (!usedRange) {
+        // Sheet is totally empty → start at first row (0 = row 1)
+        nextRow = 0;
+    } else {
+        // Last used row as a Range
+        const lastDataRowRange: ExcelScript.Range = usedRange.getLastRow();
+        // Absolute row index (0-based) of that row on the worksheet
+        const lastRowIndex: number = lastDataRowRange.getRowIndex();
+
+        // Append on the row *after* the last used row
+        nextRow = lastRowIndex + 1;
+    }
+
+    // Now safely write to the next row
+    sheet.getCell(nextRow, 0).setValue(new Date());
+    sheet.getCell(nextRow, 1).setValue("Model checked");
+}
