@@ -1,0 +1,84 @@
+function main(workbook: ExcelScript.Workbook) {
+  // Which sheet has the data, and which sheet do we log to?
+  let data = workbook.getWorksheet("EquitySnapshotPlus");
+  let logs = workbook.getWorksheet("Logs");
+
+  // Grab all the values from the data sheet
+  let allValues = data.getUsedRange().getValues();
+  let headers = allValues[0];     // first row is headers
+  let rows = allValues.slice(1);  // everything else is data
+
+  // Find the columns we care about
+  let priceCol = headers.indexOf("Price");
+  let epsCol   = headers.indexOf("EPS");
+  let peCol    = headers.indexOf("PE");
+
+  // ── CHECK 1: Are any prices missing or zero? ──────────
+  let badPrices = 0;
+  for (let row of rows) {
+    if (!row[priceCol] || row[priceCol] <= 0) {
+      badPrices++;
+    }
+  }
+  let check1 = badPrices === 0 ? "PASS" : "FAIL";
+  let detail1 = badPrices === 0
+    ? "All " + rows.length + " prices are filled in and positive"
+    : badPrices + " of " + rows.length + " row(s) have a missing or zero price";
+
+  // ── CHECK 2: Does P/E = Price / EPS? ──────────────────
+  let mathErrors = 0;
+  for (let row of rows) {
+    let expected = row[priceCol] / row[epsCol];
+    let actual = row[peCol];
+    // Allow a small rounding difference
+    if (Math.abs(expected - actual) > 0.5) {
+      mathErrors++;
+    }
+  }
+  let check2 = mathErrors === 0 ? "PASS" : "FAIL";
+  let detail2 = mathErrors === 0
+    ? "P/E = Price ÷ EPS checks out for all " + rows.length + " rows"
+    : mathErrors + " of " + rows.length + " row(s) where P/E doesn't match Price ÷ EPS";
+
+  // ── CHECK 3: Are any rows completely blank? ───────────
+  let blankRows = 0;
+  for (let row of rows) {
+    let allEmpty = true;
+    for (let cell of row) {
+      if (cell !== "" && cell !== null) { allEmpty = false; break; }
+    }
+    if (allEmpty) { blankRows++; }
+  }
+  let check3 = blankRows === 0 ? "PASS" : "WARN";
+  let detail3 = blankRows === 0
+    ? rows.length + " data rows, none blank"
+    : blankRows + " blank row(s) found in " + rows.length + " total rows";
+
+  // ── Write results to the Logs sheet ────────────────────
+  let logRange = logs.getUsedRange(false);
+  let nextRow = logRange ? logRange.getLastRow().getRowIndex() + 1 : 0;
+
+  // If the sheet is empty, add headers first
+  if (nextRow === 0) {
+    logs.getCell(0, 0).setValue("Timestamp");
+    logs.getCell(0, 1).setValue("Check");
+    logs.getCell(0, 2).setValue("Result");
+    logs.getCell(0, 3).setValue("Detail");
+    nextRow = 1;
+  }
+
+  let now = new Date().toLocaleString();
+
+  // Log each check
+  let results = [
+    [now, "Prices filled in?",        check1, detail1],
+    [now, "P/E = Price ÷ EPS?",       check2, detail2],
+    [now, "Any blank rows?",           check3, detail3],
+  ];
+
+  for (let r = 0; r < results.length; r++) {
+    for (let c = 0; c < 4; c++) {
+      logs.getCell(nextRow + r, c).setValue(results[r][c]);
+    }
+  }
+}
